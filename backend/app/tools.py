@@ -5,6 +5,7 @@ from datetime import datetime
 from typing import Optional
 import re
 import requests
+import xml.etree.ElementTree as ET
 
 logger = logging.getLogger(__name__)
 
@@ -50,6 +51,26 @@ def get_weather(city: str) -> str:
         f"{weather['temperature_2m']}°F, wind {weather['wind_speed_10m']} mph."
     )
 
+def web_search(query: str) -> str:
+    """Latest news headlines via Google News RSS (no API key)."""
+    topic = re.sub(
+        r"(?i)\b(search for|look up|google|(the )?latest news( about| on)?|news about)\b",
+        "",
+        query,
+    ).strip(" ?.!")
+    resp = requests.get(
+        "https://news.google.com/rss/search",
+        params={"q": topic or query, "hl": "en-US", "gl": "US", "ceid": "US:en"},
+        timeout=10,
+    )
+    resp.raise_for_status()
+    items = ET.fromstring(resp.content).findall("./channel/item")[:4]
+    if not items:
+        return "No news results found."
+    return "Latest news headlines:\n" + "\n".join(
+        f"- {i.findtext('title')} ({i.findtext('pubDate')})" for i in items
+    )
+
 def run_tools(message: str) -> Optional[str]:
     """Return tool output if the message needs it, otherwise None."""
     text = message.lower()
@@ -65,4 +86,11 @@ def run_tools(message: str) -> Optional[str]:
         except Exception as e:
             logger.error(f"Weather tool failed: {e}")
             return "The weather service is unavailable right now."
+    if any(w in text for w in ["search for", "look up", "latest news", "news about", "who won", "google"]):
+        logger.info("Tool used: web search")
+        try:
+            return web_search(message)
+        except Exception as e:
+            logger.error(f"Web search failed: {e}")
+            return "The web search failed. Tell the user you could not look it up. Do not guess."
     return None
