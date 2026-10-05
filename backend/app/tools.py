@@ -13,6 +13,15 @@ def get_current_time() -> str:
     now = datetime.now()
     return now.strftime("The current date is %A, %B %d, %Y, and the time is %I:%M %p.")
 
+WEATHER_CODES = {
+    0: "clear sky", 1: "mostly clear", 2: "partly cloudy", 3: "overcast",
+    45: "foggy", 48: "foggy", 51: "light drizzle", 53: "drizzle", 55: "heavy drizzle",
+    61: "light rain", 63: "rain", 65: "heavy rain",
+    71: "light snow", 73: "snow", 75: "heavy snow",
+    80: "rain showers", 81: "rain showers", 82: "heavy rain showers",
+    95: "thunderstorm", 96: "thunderstorm with hail", 99: "thunderstorm with hail",
+}
+
 def get_weather(city: str) -> str:
     """Current weather for a city using Open-Meteo (no API key needed)."""
     geo = requests.get(
@@ -34,9 +43,10 @@ def get_weather(city: str) -> str:
         },
         timeout=10,
     ).json()["current"]
+    sky = WEATHER_CODES.get(weather["weather_code"], "unknown conditions")
     return (
-        f"Current weather in {place['name']}: {weather['temperature_2m']}°F, "
-        f"wind {weather['wind_speed_10m']} mph (weather code {weather['weather_code']})."
+        f"Current weather in {place['name']}: {sky}, "
+        f"{weather['temperature_2m']}°F, wind {weather['wind_speed_10m']} mph."
     )
 
 def run_tools(message: str) -> Optional[str]:
