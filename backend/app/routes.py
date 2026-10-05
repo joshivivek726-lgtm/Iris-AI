@@ -19,6 +19,8 @@ from backend.app.database import get_database
 
 from fastapi import UploadFile, File
 from backend.app.voice_service import transcribe_file
+from pydantic import BaseModel
+from backend.app.tts_service import speak
 
 logger = logging.getLogger(__name__)
 
@@ -316,3 +318,22 @@ def transcribe_endpoint(file: UploadFile = File(...)):
     finally:
         if tmp_path and os.path.exists(tmp_path):
             os.remove(tmp_path)
+
+
+class SpeakRequest(BaseModel):
+    text: str
+
+
+@router.post("/speak")
+def speak_endpoint(request: SpeakRequest):
+    """Speak text aloud using the Mac's built-in voice"""
+    if not request.text.strip():
+        raise HTTPException(status_code=400, detail="Text cannot be empty")
+    if len(request.text) > 1000:
+        raise HTTPException(status_code=400, detail="Text too long (max 1000 chars)")
+    try:
+        speak(request.text)
+        return {"status": "spoken"}
+    except Exception as e:
+        logger.error(f"Speak error: {e}", exc_info=True)
+        raise HTTPException(status_code=500, detail="Speech failed")
