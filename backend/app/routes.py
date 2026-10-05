@@ -21,6 +21,7 @@ from fastapi import UploadFile, File
 from backend.app.voice_service import transcribe_file
 from pydantic import BaseModel
 from backend.app.tts_service import speak
+from backend.app.tools import run_tools
 
 logger = logging.getLogger(__name__)
 
@@ -77,17 +78,18 @@ class LLMService:
     def generate_response(prompt: str, history: Optional[list] = None) -> str:
         """Generate response using configured LLM"""
         if config.LLM_PROVIDER == "ollama":
-            messages = [{
-                "role": "system",
-                "content": "You are Iris, a helpful, concise AI assistant. Answer directly in plain text."
-            }]
+            system = "You are Iris, a helpful, concise AI assistant. Answer directly in plain text."
+            tool_result = run_tools(prompt)
+            if tool_result:
+                system += f"\n\nUse this real-time information to answer: {tool_result}"
+            messages = [{"role": "system", "content": system}]
             messages += history or []
             messages.append({"role": "user", "content": prompt})
             return LLMService.call_ollama(messages)
         elif config.LLM_PROVIDER == "groq":
             return LLMService.call_groq(prompt)
         else:
-            raise HTTPException(status_code=500, detail="LLM provider not configured")
+            raise HTTPException(status_code=500, detail="LLM provider not configured")    
 
 
 @router.post("/chat", response_model=ChatResponse)
