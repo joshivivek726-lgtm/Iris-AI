@@ -8,6 +8,7 @@ import requests
 
 logger = logging.getLogger(__name__)
 
+DEFAULT_CITY = "Wesley Chapel"
 
 def get_current_time() -> str:
     now = datetime.now()
