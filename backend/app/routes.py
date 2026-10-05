@@ -75,10 +75,12 @@ class LLMService:
             raise HTTPException(status_code=503, detail="LLM service unavailable")
     
     @staticmethod
-    def generate_response(prompt: str, history: Optional[list] = None) -> str:
+    def generate_response(prompt: str, history: Optional[list] = None, spoken: bool = False) -> str:
         """Generate response using configured LLM"""
         if config.LLM_PROVIDER == "ollama":
             system = "You are Iris, a helpful, concise AI assistant. Answer directly in plain text."
+            if spoken:
+                system += " Your answer will be spoken aloud, so reply in one or two short sentences with no lists or markdown."
             tool_result = run_tools(prompt)
             if tool_result:
                 system += f"\n\nUse this real-time information to answer: {tool_result}"
@@ -89,7 +91,7 @@ class LLMService:
         elif config.LLM_PROVIDER == "groq":
             return LLMService.call_groq(prompt)
         else:
-            raise HTTPException(status_code=500, detail="LLM provider not configured")    
+            raise HTTPException(status_code=500, detail="LLM provider not configured") 
 
 
 @router.post("/chat", response_model=ChatResponse)
@@ -383,7 +385,7 @@ def voice_chat_endpoint(
     history = db.get_conversation_history(conversation_id, config.MAX_CONVERSATION_HISTORY)
     history_msgs = [{"role": m["role"], "content": m["content"]} for m in history[:-1]]
 
-    response_text = LLMService.generate_response(text, history_msgs)
+    response_text = LLMService.generate_response(text, history_msgs, spoken=True)
     db.save_message(conversation_id, user_id, "assistant", response_text)
 
     try:

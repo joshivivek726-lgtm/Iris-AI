@@ -8,7 +8,7 @@ logger = logging.getLogger(__name__)
 
 
 def speak(text: str, voice: Optional[str] = None) -> None:
-    """Speak text aloud on the machine running the server."""
+    """Start speaking text aloud and return immediately."""
     text = text.strip()
     if not text:
         return
@@ -16,8 +16,7 @@ def speak(text: str, voice: Optional[str] = None) -> None:
     if voice:
         cmd += ["-v", voice]
     cmd += ["-f", "-"]
-    # Text goes in through stdin, so it can never be read as a command option
-    result = subprocess.run(cmd, input=text.encode("utf-8"), capture_output=True)
-    if result.returncode != 0:
-        raise RuntimeError(f"say failed: {result.stderr.decode().strip()}")
-    logger.info(f"Spoke {len(text)} characters")
+    proc = subprocess.Popen(cmd, stdin=subprocess.PIPE)
+    proc.stdin.write(text.encode("utf-8"))
+    proc.stdin.close()
+    logger.info(f"Speaking {len(text)} characters")
