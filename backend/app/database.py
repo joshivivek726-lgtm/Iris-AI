@@ -25,7 +25,7 @@ class Database:
     def connect(self) -> sqlite3.Connection:
         """Create database connection"""
         try:
-            self.connection = sqlite3.connect(self.db_path)
+            self.connection = sqlite3.connect(self.db_path, check_same_thread=False)
             self.connection.row_factory = sqlite3.Row
             logger.info(f"Connected to database: {self.db_path}")
             return self.connection

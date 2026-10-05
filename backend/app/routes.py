@@ -337,3 +337,61 @@ def speak_endpoint(request: SpeakRequest):
     except Exception as e:
         logger.error(f"Speak error: {e}", exc_info=True)
         raise HTTPException(status_code=500, detail="Speech failed")
+    
+
+@router.post("/voice-chat")
+def voice_chat_endpoint(
+    file: UploadFile = File(...),
+    user_id: str = "default_user",
+    conversation_id: Optional[str] = None,
+):
+    """Audio in -> Whisper -> LLM -> spoken reply"""
+    start_time = time.time()
+    suffix = os.path.splitext(file.filename or "")[1] or ".m4a"
+    tmp_path = None
+    try:
+        with tempfile.NamedTemporaryFile(delete=False, suffix=suffix) as tmp:
+            tmp.write(file.file.read())
+            tmp_path = tmp.name
+        text = transcribe_file(tmp_path)
+    except Exception as e:
+        logger.error(f"Transcription error: {e}", exc_info=True)
+        raise HTTPException(status_code=500, detail="Transcription failed")
+    finally:
+        if tmp_path and os.path.exists(tmp_path):
+            os.remove(tmp_path)
+
+    if not text:
+        raise HTTPException(status_code=400, detail="No speech detected")
+
+    db = get_database()
+    if conversation_id:
+        cursor = db.connection.cursor()
+        cursor.execute(
+            "SELECT 1 FROM conversations WHERE conversation_id = ?",
+            (conversation_id,)
+        )
+        if cursor.fetchone() is None:
+            raise HTTPException(status_code=404, detail="Conversation not found")
+    else:
+        conversation_id = f"conv_{uuid.uuid4().hex[:8]}"
+        db.create_conversation(conversation_id, user_id)
+
+    db.save_message(conversation_id, user_id, "user", text)
+    history = db.get_conversation_history(conversation_id, config.MAX_CONVERSATION_HISTORY)
+    history_msgs = [{"role": m["role"], "content": m["content"]} for m in history[:-1]]
+
+    response_text = LLMService.generate_response(text, history_msgs)
+    db.save_message(conversation_id, user_id, "assistant", response_text)
+
+    try:
+        speak(response_text)
+    except Exception as e:
+        logger.error(f"Speak error: {e}")
+
+    return {
+        "transcript": text,
+        "response": response_text,
+        "conversation_id": conversation_id,
+        "processing_time_ms": (time.time() - start_time) * 1000,
+    }
