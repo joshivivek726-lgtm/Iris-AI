@@ -22,6 +22,7 @@ from backend.app.voice_service import transcribe_file
 from pydantic import BaseModel
 from backend.app.tts_service import speak
 from backend.app.tools import run_tools
+from fastapi.responses import FileResponse
 
 logger = logging.getLogger(__name__)
 
@@ -399,3 +400,11 @@ def voice_chat_endpoint(
         "conversation_id": conversation_id,
         "processing_time_ms": (time.time() - start_time) * 1000,
     }
+
+
+
+@router.get("/app", include_in_schema=False)
+def web_app():
+    """Serve the Iris web page"""
+    path = os.path.join(os.path.dirname(__file__), "..", "..", "frontend", "index.html")
+    return FileResponse(os.path.abspath(path))
