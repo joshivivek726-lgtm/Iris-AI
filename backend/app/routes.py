@@ -7,6 +7,8 @@ import logging
 import requests
 import time
 import uuid
+import os
+import tempfile
 from fastapi import APIRouter, HTTPException, Query
 from datetime import datetime
 from typing import Optional
@@ -14,6 +16,9 @@ from typing import Optional
 from backend.app.config import config
 from backend.app.models import ChatRequest, ChatResponse, ConversationHistory, ErrorResponse
 from backend.app.database import get_database
+
+from fastapi import UploadFile, File
+from backend.app.voice_service import transcribe_file
 
 logger = logging.getLogger(__name__)
 
@@ -292,3 +297,22 @@ async def get_user_preferences(user_id: str):
     except Exception as e:
         logger.error(f"Error retrieving preferences: {e}")
         raise HTTPException(status_code=500, detail="Failed to retrieve preferences")
+
+@router.post("/transcribe")
+def transcribe_endpoint(file: UploadFile = File(...)):
+    """Transcribe an uploaded audio file to text"""
+    suffix = os.path.splitext(file.filename or "")[1] or ".m4a"
+    tmp_path = None
+    try:
+        with tempfile.NamedTemporaryFile(delete=False, suffix=suffix) as tmp:
+            tmp.write(file.file.read())
+            tmp_path = tmp.name
+        text = transcribe_file(tmp_path)
+        logger.info(f"Transcribed audio: {text[:50]}")
+        return {"text": text}
+    except Exception as e:
+        logger.error(f"Transcription error: {e}", exc_info=True)
+        raise HTTPException(status_code=500, detail="Transcription failed")
+    finally:
+        if tmp_path and os.path.exists(tmp_path):
+            os.remove(tmp_path)
