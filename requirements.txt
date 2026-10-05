@@ -1,0 +1,31 @@
+# FastAPI & Web
+fastapi==0.124.4
+uvicorn==0.33.0
+pydantic==2.10.6
+pydantic-settings==2.1.0
+
+# Environment & Config
+python-dotenv==1.0.1
+
+# HTTP & Requests
+requests==2.31.0
+httpx==0.28.1
+
+# Voice I/O
+openai-whisper==20240930
+pyttsx3==2.90
+
+# Database
+aiofiles==23.2.1
+
+# Logging & Utils
+python-json-logger==2.0.7
+
+# Testing (optional, for Phase 4)
+pytest==7.4.3
+pytest-asyncio==0.21.1
+
+# Code Quality (optional)
+black==23.12.1
+flake8==6.1.0
+mypy==1.7.1
