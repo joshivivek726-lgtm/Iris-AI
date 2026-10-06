@@ -9,6 +9,8 @@ import time
 import uuid
 import os
 import tempfile
+import sys
+import threading
 from fastapi import APIRouter, HTTPException, Query
 from datetime import datetime
 from typing import Optional
@@ -408,3 +410,28 @@ def web_app():
     """Serve the Iris web page"""
     path = os.path.join(os.path.dirname(__file__), "..", "..", "frontend", "index.html")
     return FileResponse(os.path.abspath(path))
+
+
+def _warm_up():
+    """Load Whisper and Llama in the background so the first request is fast."""
+    try:
+        from backend.app.voice_service import get_model
+        get_model()
+        requests.post(
+            f"{config.OLLAMA_BASE_URL}/api/chat",
+            json={
+                "model": config.LLM_MODEL,
+                "messages": [{"role": "user", "content": "hi"}],
+                "stream": False,
+                "keep_alive": "30m",
+                "options": {"num_ctx": 2048, "num_predict": 1},
+            },
+            timeout=120,
+        )
+        logger.info("Warm-up complete")
+    except Exception as e:
+        logger.warning(f"Warm-up skipped: {e}")
+
+
+if "pytest" not in sys.modules:
+    threading.Thread(target=_warm_up, daemon=True).start()
