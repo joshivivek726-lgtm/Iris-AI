@@ -27,7 +27,7 @@ Audio file --> Whisper (STT) --> FastAPI --> Tool router --> Ollama (Llama 3.2) 
 Requirements: macOS, Python 3.8+, [Ollama](https://ollama.com), ffmpeg (`brew install ffmpeg`)
 
 ```bash
-git clone <your-repo-url>
+git clone https://github.com/joshivivek726-lgtm/Iris-AI.git
 cd Iris-AI
 python3 -m venv venv
 source venv/bin/activate
