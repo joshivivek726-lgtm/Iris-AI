@@ -1,0 +1,118 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Iris AI</title>
+<style>
+  body { font-family: -apple-system, system-ui, sans-serif; background: #0f1115; color: #e8e8ea; margin: 0; display: flex; justify-content: center; }
+  main { width: 100%; max-width: 640px; height: 100vh; display: flex; flex-direction: column; padding: 16px; box-sizing: border-box; }
+  h1 { font-size: 20px; margin: 0 0 12px; }
+  #log { flex: 1; overflow-y: auto; display: flex; flex-direction: column; gap: 8px; }
+  .msg { padding: 10px 14px; border-radius: 12px; max-width: 85%; white-space: pre-wrap; line-height: 1.4; }
+  .user { background: #2b4acb; align-self: flex-end; }
+  .iris { background: #1f2330; align-self: flex-start; }
+  .note { color: #8a8f9c; font-size: 13px; align-self: center; }
+  form { display: flex; gap: 8px; margin-top: 12px; }
+  input { flex: 1; padding: 12px; border-radius: 10px; border: 1px solid #333; background: #181b22; color: inherit; font-size: 16px; }
+  button { padding: 12px 16px; border-radius: 10px; border: 0; background: #2b4acb; color: white; font-size: 16px; cursor: pointer; }
+  button.rec { background: #c0392b; }
+  button:disabled { opacity: .5; cursor: wait; }
+</style>
+</head>
+<body>
+<main>
+  <h1>Iris AI</h1>
+  <div id="log"><div class="note">Type a message, or press the mic and speak. Iris answers out loud on this Mac.</div></div>
+  <form id="form">
+    <input id="text" placeholder="Ask Iris something..." autocomplete="off">
+    <button id="send" type="submit">Send</button>
+    <button id="mic" type="button">Mic</button>
+  </form>
+</main>
+<script>
+  const log = document.getElementById("log");
+  const text = document.getElementById("text");
+  const send = document.getElementById("send");
+  const mic = document.getElementById("mic");
+  let conversationId = null;
+  let recorder = null;
+  let chunks = [];
+
+  function add(role, content) {
+    const div = document.createElement("div");
+    div.className = "msg " + role;
+    div.textContent = content;
+    log.appendChild(div);
+    log.scrollTop = log.scrollHeight;
+  }
+
+  function busy(on) { send.disabled = on; mic.disabled = on; }
+
+  document.getElementById("form").addEventListener("submit", async (e) => {
+    e.preventDefault();
+    const message = text.value.trim();
+    if (!message) return;
+    text.value = "";
+    add("user", message);
+    busy(true);
+    try {
+      const body = { message, user_id: "web_user" };
+      if (conversationId) body.conversation_id = conversationId;
+      const r = await fetch("/api/chat", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(body),
+      });
+      const data = await r.json();
+      if (!r.ok) throw new Error(data.detail || "Request failed");
+      conversationId = data.conversation_id;
+      add("iris", data.response);
+    } catch (err) {
+      add("iris", "Error: " + err.message);
+    }
+    busy(false);
+  });
+
+  mic.addEventListener("click", async () => {
+    if (recorder && recorder.state === "recording") {
+      recorder.stop();
+      return;
+    }
+    try {
+      const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+      recorder = new MediaRecorder(stream);
+      chunks = [];
+      recorder.ondataavailable = (e) => chunks.push(e.data);
+      recorder.onstop = async () => {
+        stream.getTracks().forEach((t) => t.stop());
+        mic.textContent = "Mic";
+        mic.classList.remove("rec");
+        busy(true);
+        add("user", "(voice message...)");
+        try {
+          const form = new FormData();
+          form.append("file", new Blob(chunks, { type: recorder.mimeType }), "voice.webm");
+          let url = "/api/voice-chat";
+          if (conversationId) url += "?conversation_id=" + conversationId;
+          const r = await fetch(url, { method: "POST", body: form });
+          const data = await r.json();
+          if (!r.ok) throw new Error(data.detail || "Request failed");
+          conversationId = data.conversation_id;
+          log.lastChild.textContent = data.transcript;
+          add("iris", data.response);
+        } catch (err) {
+          add("iris", "Error: " + err.message);
+        }
+        busy(false);
+      };
+      recorder.start();
+      mic.textContent = "Stop";
+      mic.classList.add("rec");
+    } catch (err) {
+      add("iris", "Microphone unavailable: " + err.message);
+    }
+  });
+</script>
+</body>
+</html>
