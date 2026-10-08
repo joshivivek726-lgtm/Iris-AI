@@ -145,10 +145,14 @@ class Database:
             cursor = self.connection.cursor()
             cursor.execute('''
                 SELECT role, content, timestamp
-                FROM messages
-                WHERE conversation_id = ?
-                ORDER BY timestamp ASC
-                LIMIT ?
+                FROM (
+                    SELECT role, content, timestamp, rowid AS message_rowid
+                    FROM messages
+                    WHERE conversation_id = ?
+                    ORDER BY timestamp DESC, rowid DESC
+                    LIMIT ?
+                )
+                ORDER BY timestamp ASC, message_rowid ASC
             ''', (conversation_id, limit))
             
             rows = cursor.fetchall()

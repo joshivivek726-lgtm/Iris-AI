@@ -6,6 +6,7 @@ Main entry point for the Iris AI assistant
 import logging
 import os
 from fastapi import FastAPI, Request
+from fastapi.encoders import jsonable_encoder
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
 from datetime import datetime
@@ -93,7 +94,7 @@ async def global_exception_handler(request: Request, exc: Exception):
     
     return JSONResponse(
         status_code=500,
-        content=error_response.model_dump()
+        content=jsonable_encoder(error_response)
     )
 
 
