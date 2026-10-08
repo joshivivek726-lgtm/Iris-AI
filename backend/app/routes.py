@@ -48,7 +48,7 @@ class LLMService:
                     "messages": messages,
                     "stream": False,
                     "keep_alive": "30m",
-                    "options": {"num_ctx": 2048, "num_predict": 200}
+                    "options": {"num_ctx": 2048, "num_predict": 200, "temperature": 0.2}
                 },
                 timeout=config.API_TIMEOUT
             )
@@ -81,12 +81,53 @@ class LLMService:
     def generate_response(prompt: str, history: Optional[list] = None, spoken: bool = False) -> str:
         """Generate response using configured LLM"""
         if config.LLM_PROVIDER == "ollama":
-            system = "You are Iris, a helpful, concise AI assistant. Answer directly in plain text."
+            system = (
+                "You are Iris, a helpful, concise AI assistant. Answer the latest user message directly. "
+                "Use earlier messages only when the latest message clearly depends on them. "
+                "Do not answer an earlier question instead of the latest one."
+            )
             if spoken:
                 system += " Your answer will be spoken aloud, so reply in one or two short sentences with no lists or markdown."
             tool_result = run_tools(prompt)
             if tool_result:
-                system += f"\n\nUse this real-time information to answer: {tool_result}"
+                if tool_result.startswith("Web search results:"):
+                    # Let the LLM turn raw search results into a short spoken
+                    # answer, but force it to use only the retrieved text.
+                    today = datetime.now().strftime("%A, %B %d, %Y")
+                    search_messages = [
+                        {
+                            "role": "system",
+                            "content": (
+                                f"You are Iris, a voice assistant. Today is {today}. "
+                                "You are given news search results. Summarise what they say "
+                                "that answers the user's question, in one or two short spoken "
+                                "sentences. No lists, no markdown, no URLs. "
+                                "For sports questions, report the winner, the margin, and the "
+                                "standout performers, even if a full scorecard is not included. "
+                                "Treat the most recent results as the answer. "
+                                "Use only the search results, not your own knowledge. "
+                                "Never add, subtract or calculate numbers. Quote scores exactly "
+                                "as written in the results. A single batter's runs are not a "
+                                "team total. If the team totals are not in the results, give "
+                                "the winner and the margin, and say the full totals were not "
+                                "in the results. "
+                                "Only say you couldn't find it if the results are about "
+                                "something unrelated."
+                            ),
+                        },
+                        {
+                            "role": "user",
+                            "content": f"{tool_result}\n\nQuestion: {prompt}",
+                        },
+                    ]
+                    logger.info("Search results sent to LLM:\n%s", tool_result)
+                    try:
+                        return LLMService.call_ollama(search_messages)
+                    except Exception as e:
+                        logger.error("Summarising search results failed: %s", e)
+                        return tool_result  # fall back to raw results
+                # Time and weather are already short, readable sentences
+                return tool_result
             messages = [{"role": "system", "content": system}]
             messages += history or []
             messages.append({"role": "user", "content": prompt})
@@ -94,7 +135,7 @@ class LLMService:
         elif config.LLM_PROVIDER == "groq":
             return LLMService.call_groq(prompt)
         else:
-            raise HTTPException(status_code=500, detail="LLM provider not configured") 
+            raise HTTPException(status_code=500, detail="LLM provider not configured")
 
 
 @router.post("/chat", response_model=ChatResponse)
@@ -144,7 +185,7 @@ async def chat_endpoint(request: ChatRequest) -> ChatResponse:
             history = db.get_conversation_history(conversation_id, config.MAX_CONVERSATION_HISTORY)
             history_msgs = [{"role": m["role"], "content": m["content"]} for m in history[:-1]]
         
-                # Generate response using LLM
+        # Generate response using LLM
         try:
             response_text = LLMService.generate_response(request.message, history_msgs)
         except HTTPException as e:
