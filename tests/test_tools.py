@@ -55,3 +55,9 @@ def test_questions_trigger_search(monkeypatch):
     assert tools.run_tools("Is there any new rule passed by trump administration") is not None
     assert tools.run_tools("What is 2+2?") is None
     assert tools.run_tools("What is my name?") is None
+
+
+def test_tiny_or_math_messages_skip_search():
+    assert tools.needs_search("What is ?") is False
+    assert tools.needs_search("What is 2 plus 2?") is False
+    assert tools.needs_search("Who won the match yesterday?") is True
