@@ -86,9 +86,14 @@ class LLMService:
                 "Use earlier messages only when the latest message clearly depends on them. "
                 "Do not answer an earlier question instead of the latest one."
             )
+            system += (
+                " Today's date is " + datetime.now().strftime("%A, %B %d, %Y") + ". "
+                "Your training data is older than this, so never say a date is in the future "
+                "based on your own knowledge, and never invent facts about recent events."
+            )
             if spoken:
                 system += " Your answer will be spoken aloud, so reply in one or two short sentences with no lists or markdown."
-            tool_result = run_tools(prompt)
+            tool_result = run_tools(prompt, history)
             if tool_result:
                 if tool_result.startswith("Web search results:"):
                     # Let the LLM turn raw search results into a short spoken
@@ -106,6 +111,8 @@ class LLMService:
                                 "standout performers, even if a full scorecard is not included. "
                                 "Treat the most recent results as the answer. "
                                 "Use only the search results, not your own knowledge. "
+                                "Do not guess a winner: if the results do not clearly say who won, say so. "
+                                "Check the dates in the results against the date the user asked about. "
                                 "Never add, subtract or calculate numbers. Quote scores exactly "
                                 "as written in the results. A single batter's runs are not a "
                                 "team total. If the team totals are not in the results, give "

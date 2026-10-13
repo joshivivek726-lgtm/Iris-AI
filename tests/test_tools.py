@@ -37,3 +37,21 @@ def test_search_failure_is_reported(monkeypatch):
     monkeypatch.setattr(tools, "web_search", boom)
     result = tools.run_tools("Search for the latest news about SpaceX")
     assert "failed" in result
+
+def test_follow_up_reuses_previous_question(monkeypatch):
+    seen = {}
+
+    def fake_search(query):
+        seen["query"] = query
+        return "Web search results:\n- fake"
+
+    monkeypatch.setattr(tools, "web_search", fake_search)
+    history = [{"role": "user", "content": "total score of india vs west indies t20 cricket match yesterday"}]
+    tools.run_tools("then whats the score", history)
+    assert "india" in seen["query"].lower()
+
+def test_questions_trigger_search(monkeypatch):
+    monkeypatch.setattr(tools, "web_search", lambda q: "Web search results:\n- fake")
+    assert tools.run_tools("Is there any new rule passed by trump administration") is not None
+    assert tools.run_tools("What is 2+2?") is None
+    assert tools.run_tools("What is my name?") is None
