@@ -140,7 +140,7 @@ def web_search(query: str) -> str:
     if not items:
         if errors == 2:
             return "Web search failed. Please try again shortly."
-        return f"No search results found for: {search_query}"
+        return f"I could not find any recent news about: {search_query}."
 
     output = "Web search results:\n" + "\n".join(
         f"- {i.findtext('title')} ({i.findtext('pubDate')})" for i in items
@@ -157,7 +157,7 @@ NO_SEARCH = re.compile(
     r"\b(?:my\s+name|remember|who\s+am\s+i|your\s+name|who\s+are\s+you|thank|thanks|joke|poem|story|write\s+me|translate)\b",
     re.IGNORECASE,
 )
-MATH = re.compile(r"\d\s*[-+*/x]\s*\d")
+MATH = re.compile(r"\d\s*(?:[-+*/x]|plus|minus|times|divided\s+by)\s*\d", re.IGNORECASE)
 
 
 def needs_search(message: str, history: Optional[list] = None) -> bool:
@@ -165,6 +165,8 @@ def needs_search(message: str, history: Optional[list] = None) -> bool:
     if WEB_SEARCH_INTENT.search(message) or _is_short_follow_up(message, history):
         return True
     if NO_SEARCH.search(message) or MATH.search(message):
+        return False
+    if len(re.findall(r"[A-Za-z0-9]+", message)) < 3:
         return False
     return bool(QUESTION_START.search(message)) or message.strip().endswith("?")
 
